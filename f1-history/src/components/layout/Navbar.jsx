@@ -10,15 +10,17 @@ const Navbar = () => {
   const isRegularUser = isUser && !isAdmin;
 
   const links = useMemo(() => [
-    { to: '/',           label: 'Inicio' },
+    { to: '/', label: 'Inicio' },
     { to: '/temporadas', label: 'Temporadas' },
-    { to: '/pilotos',    label: 'Pilotos' },
+    { to: '/pilotos', label: 'Pilotos' },
+    { to: '/carreras', label: 'Carreras' },
+    { to: '/buscar', label: 'Buscar' },
     { to: '/comparador', label: 'Comparador' },
     // Dashboard — visible para cualquier usuario logueado
     ...(isUser ? [{ to: '/dashboard', label: 'Dashboard' }] : []),
     // Postular y Mis Postulaciones — SOLO usuarios normales, no admin
     ...(isRegularUser ? [
-      { to: '/postular-equipo',   label: 'Postular Equipo' },
+      { to: '/postular-equipo', label: 'Postular Equipo' },
       { to: '/mis-postulaciones', label: 'Mis Postulaciones' },
     ] : []),
     { to: '/circuitos', label: 'Circuitos' },

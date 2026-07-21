@@ -2,6 +2,9 @@ package edu.espe.f1.service;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import edu.espe.f1.dto.TeamMapper;
+import edu.espe.f1.dto.TeamRequestDTO;
 import edu.espe.f1.entity.Driver;
 import edu.espe.f1.entity.Team;
 import edu.espe.f1.entity.User;
@@ -10,12 +13,18 @@ import edu.espe.f1.repository.TeamRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
-
 import java.util.List;
 import java.util.Map;
+import edu.espe.f1.entity.Race;
+import edu.espe.f1.entity.RaceResult;
+import edu.espe.f1.repository.RaceRepository;
+import edu.espe.f1.repository.RaceResultRepository;
 
-import org.springframework.transaction.annotation.Transactional;
+import java.util.HashMap;
+
+import edu.espe.f1.dto.TeamRequestDTO;
 
 @Service
 public class TeamService {
@@ -24,6 +33,12 @@ public class TeamService {
     private TeamRepository teamRepository;
     @Autowired
     private DriverRepository driverRepository;
+    @Autowired
+    private ChangeLogService changeLogService;
+    @Autowired
+    private RaceRepository raceRepository;
+    @Autowired
+    private RaceResultRepository raceResultRepository;
 
     private final ObjectMapper mapper = new ObjectMapper();
 
@@ -39,29 +54,44 @@ public class TeamService {
                         "Escudería no encontrada con ID: " + id));
     }
 
-    public Team createTeam(Team team) {
-        if (teamRepository.existsById(team.getId())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "La escudería ya existe con el ID: " + team.getId());
-        }
-        team.setStatus(Team.TeamStatus.APPROVED);
-        return teamRepository.save(team);
+    public List<Team> searchTeams(String name) {
+        return teamRepository.findByNameContainingIgnoreCase(name);
     }
 
-    public Team updateTeam(String id, Team teamDetails) {
+    public Team createTeam(TeamRequestDTO dto) {
+        if (teamRepository.existsById(dto.id())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "La escudería ya existe con el ID: " + dto.id());
+        }
+        Team team = TeamMapper.toEntity(dto);
+        team.setStatus(Team.TeamStatus.APPROVED);
+        Team saved = teamRepository.save(team);
+        changeLogService.log("CREATE", "Team", saved.getId(), currentUsername(),
+                "Equipo creado: " + saved.getName());
+        return saved;
+    }
+
+    public Team updateTeam(String id, TeamRequestDTO dto) {
         Team team = getTeamById(id);
-        team.setName(teamDetails.getName());
-        team.setFullName(teamDetails.getFullName());
-        team.setBase(teamDetails.getBase());
-        team.setFounded(teamDetails.getFounded());
-        team.setChampionships(teamDetails.getChampionships());
-        team.setColor(teamDetails.getColor());
-        team.setWins(teamDetails.getWins());
-        return teamRepository.save(team);
+        team.setName(dto.name());
+        team.setFullName(dto.fullName());
+        team.setBase(dto.base());
+        team.setFounded(dto.founded());
+        team.setChampionships(dto.championships());
+        team.setColor(dto.color());
+        team.setWins(dto.wins());
+        Team saved = teamRepository.save(team);
+        changeLogService.log("UPDATE", "Team", saved.getId(), currentUsername(),
+                "Equipo actualizado: " + saved.getName());
+        return saved;
     }
 
     public void deleteTeam(String id) {
-        teamRepository.delete(getTeamById(id));
+        Team team = getTeamById(id);
+        team.setStatus(Team.TeamStatus.DELETED);
+        teamRepository.save(team);
+        changeLogService.log("DELETE", "Team", team.getId(), currentUsername(),
+                "Equipo desactivado (eliminación lógica): " + team.getName());
     }
 
     // ── POSTULACIONES ─────────────────────────────────────────────
@@ -70,8 +100,67 @@ public class TeamService {
     public Team submitTeam(Map<String, Object> body, User submittedBy) {
         Team team = new Team();
 
-        // Generar ID desde el nombre corto
         String teamName = (String) body.get("teamName");
+
+        if (teamName == null || teamName.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "El nombre corto del equipo es obligatorio");
+        }
+        if (teamName.length() > 20) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "El nombre corto no puede superar los 20 caracteres");
+        }
+
+        // ── Validación de color duplicado ─────────────────────────────
+        String color = (String) body.getOrDefault("color", "#ff0000");
+        boolean colorTaken = teamRepository.findByStatus(Team.TeamStatus.APPROVED).stream()
+                .anyMatch(t -> t.getColor() != null && t.getColor().equalsIgnoreCase(color));
+        if (colorTaken) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Ese color ya está en uso por otra escudería. Elige un color distinto.");
+        }
+
+        // ── Validación de pilotos (número duplicado y regla del #1) ────
+        List<Map<String, Object>> pilotsRaw;
+        try {
+            pilotsRaw = (List<Map<String, Object>>) body.get("pilots");
+        } catch (Exception ex) {
+            pilotsRaw = List.of();
+        }
+
+        List<Integer> submittedNumbers = new java.util.ArrayList<>();
+        Driver champion = getCurrentChampion();
+
+        for (Map<String, Object> p : pilotsRaw) {
+            if (p.get("number") == null)
+                continue;
+            int number = Integer.parseInt(String.valueOf(p.get("number")));
+            String pilotName = String.valueOf(p.getOrDefault("name", "")).trim();
+
+            // No repetir número entre los pilotos del mismo formulario
+            if (submittedNumbers.contains(number)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        "Los dos pilotos no pueden tener el mismo número (" + number + ")");
+            }
+            submittedNumbers.add(number);
+
+            // No repetir número con un piloto activo ya existente
+            if (driverRepository.existsByNumberAndActiveTrue(number)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        "El número " + number + " ya está siendo usado por otro piloto activo");
+            }
+
+            // El número 1 solo puede usarlo el campeón vigente de la temporada actual
+            if (number == 1) {
+                boolean isChampion = champion != null && champion.getName().equalsIgnoreCase(pilotName);
+                if (!isChampion) {
+                    String championName = champion != null ? champion.getName() : "el campeón vigente";
+                    throw new ResponseStatusException(HttpStatus.CONFLICT,
+                            "El número 1 está reservado para " + championName + ", campeón de la temporada actual");
+                }
+            }
+        }
+
         String teamId = teamName.toLowerCase()
                 .replaceAll("[^a-z0-9]", "-")
                 .replaceAll("-+", "-");
@@ -87,7 +176,6 @@ public class TeamService {
         team.setNotes((String) body.getOrDefault("notes", ""));
         team.setSubmittedBy(submittedBy);
 
-        // Serializar pilotos como JSON
         try {
             Object pilots = body.get("pilots");
             team.setPilotsData(mapper.writeValueAsString(pilots));
@@ -95,25 +183,24 @@ public class TeamService {
             team.setPilotsData("[]");
         }
 
-        // Verificar que el ID no exista
         if (teamRepository.existsById(teamId)) {
             team.setId(teamId + "-" + System.currentTimeMillis());
         }
 
-        return teamRepository.save(team);
+        Team saved = teamRepository.save(team);
+        changeLogService.log("CREATE", "Team", saved.getId(), currentUsername(),
+                "Postulación enviada: " + saved.getName() + " (pendiente de revisión)");
+        return saved;
     }
 
-    // Obtener todos los pendientes (solo admin)
     public List<Team> getPendingTeams() {
         return teamRepository.findByStatus(Team.TeamStatus.PENDING);
     }
 
-    // Obtener rechazados (solo admin)
     public List<Team> getRejectedTeams() {
         return teamRepository.findByStatus(Team.TeamStatus.REJECTED);
     }
 
-    // Obtener postulaciones del usuario actual
     public List<Team> getMySubmissions(User user) {
         return teamRepository.findBySubmittedBy(user);
     }
@@ -133,8 +220,12 @@ public class TeamService {
         team.setStatus(Team.TeamStatus.APPROVED);
         teamRepository.save(team);
 
-        // Insertar pilotos automáticamente
-        insertPilotsFromTeam(team);
+        List<String> insertedPilots = insertPilotsFromTeam(team);
+
+        changeLogService.log("UPDATE", "Team", team.getId(), currentUsername(),
+                "Equipo aprobado: " + team.getName() +
+                        (insertedPilots.isEmpty() ? ""
+                                : " — pilotos insertados: " + String.join(", ", insertedPilots)));
 
         return team;
     }
@@ -154,13 +245,20 @@ public class TeamService {
         if (reason != null && !reason.isBlank()) {
             team.setNotes(reason);
         }
-        return teamRepository.save(team);
+        Team saved = teamRepository.save(team);
+        changeLogService.log("UPDATE", "Team", saved.getId(), currentUsername(),
+                "Equipo rechazado: " + saved.getName()
+                        + (reason != null && !reason.isBlank() ? " — motivo: " + reason : ""));
+        return saved;
     }
 
     // ── HELPER: insertar pilotos al aprobar equipo ────────────────
-    private void insertPilotsFromTeam(Team team) {
+    // Devuelve los nombres de los pilotos insertados, para incluirlos en el log de
+    // auditoría
+    private List<String> insertPilotsFromTeam(Team team) {
+        List<String> insertedNames = new java.util.ArrayList<>();
         if (team.getPilotsData() == null || team.getPilotsData().isBlank())
-            return;
+            return insertedNames;
 
         try {
             List<Map<String, Object>> pilots = mapper.readValue(
@@ -174,9 +272,16 @@ public class TeamService {
                 if (name == null || name.isBlank())
                     continue;
 
+                // Evitar duplicar un piloto que ya existe activo con el mismo nombre
+                boolean alreadyExists = driverRepository.findByActiveTrue().stream()
+                        .anyMatch(d -> d.getName().equalsIgnoreCase(name.trim()));
+                if (alreadyExists) {
+                    throw new ResponseStatusException(HttpStatus.CONFLICT,
+                            "Ya existe un piloto activo llamado \"" + name + "\". No se puede registrar duplicado.");
+                }
+
                 Driver driver = new Driver();
 
-                // Generar ID y slug desde el nombre
                 String slug = name.toLowerCase()
                         .replaceAll("[^a-z0-9]", "-")
                         .replaceAll("-+", "-");
@@ -196,14 +301,46 @@ public class TeamService {
                 driver.setCurrentTeam(team);
 
                 driverRepository.save(driver);
+                insertedNames.add(name);
             }
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
                     "Error al insertar pilotos del equipo " + team.getId() + ": " + e.getMessage());
         }
+
+        return insertedNames;
     }
 
-    public List<Team> searchTeams(String name) {
-        return teamRepository.findByNameContainingIgnoreCase(name);
+    // Calcula el piloto con más puntos en la temporada más reciente con carreras
+    // registradas
+    private Driver getCurrentChampion() {
+        Integer latestSeason = raceRepository.findAll().stream()
+                .map(Race::getSeason)
+                .max(Integer::compareTo)
+                .orElse(null);
+        if (latestSeason == null)
+            return null;
+
+        List<Long> seasonRaceIds = raceRepository.findBySeasonOrderByRoundAsc(latestSeason).stream()
+                .map(Race::getId)
+                .collect(java.util.stream.Collectors.toList());
+
+        Map<String, Double> pointsByDriver = new HashMap<>();
+        for (Long raceId : seasonRaceIds) {
+            for (RaceResult r : raceResultRepository.findByRaceIdAndActiveTrue(raceId)) {
+                pointsByDriver.merge(r.getDriver().getId(), r.getPoints().doubleValue(), Double::sum);
+            }
+        }
+
+        return pointsByDriver.entrySet().stream()
+                .max(Map.Entry.comparingByValue())
+                .map(e -> driverRepository.findById(e.getKey()).orElse(null))
+                .orElse(null);
+    }
+
+    // ── HELPER ───────────────────────────────────────────────────
+    private String currentUsername() {
+        var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        return (auth != null && auth.isAuthenticated()) ? auth.getName() : "anónimo";
     }
 }

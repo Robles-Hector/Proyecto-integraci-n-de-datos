@@ -1,6 +1,7 @@
 package edu.espe.f1.controller;
 
 import edu.espe.f1.dto.RaceMapper;
+import edu.espe.f1.dto.RaceRequestDTO;
 import edu.espe.f1.dto.RaceResponseDTO;
 import edu.espe.f1.entity.Race;
 import edu.espe.f1.service.RaceService;
@@ -18,7 +19,8 @@ import java.util.Map;
 @CrossOrigin(origins = "*")
 public class RaceController {
 
-    @Autowired private RaceService raceService;
+    @Autowired
+    private RaceService raceService;
 
     @GetMapping
     public ResponseEntity<List<RaceResponseDTO>> getAllRaces() {
@@ -43,14 +45,14 @@ public class RaceController {
     }
 
     @PostMapping
-    public ResponseEntity<RaceResponseDTO> createRace(@Valid @RequestBody Race race) {
-        Race created = raceService.createRace(race);
+    public ResponseEntity<RaceResponseDTO> createRace(@Valid @RequestBody RaceRequestDTO dto) {
+        Race created = raceService.createRace(dto);
         return new ResponseEntity<>(RaceMapper.toDTO(created), HttpStatus.CREATED);
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<RaceResponseDTO> updateRace(@PathVariable Long id, @Valid @RequestBody Race race) {
-        Race updated = raceService.updateRace(id, race);
+    public ResponseEntity<RaceResponseDTO> updateRace(@PathVariable Long id, @Valid @RequestBody RaceRequestDTO dto) {
+        Race updated = raceService.updateRace(id, dto);
         return ResponseEntity.ok(RaceMapper.toDTO(updated));
     }
 

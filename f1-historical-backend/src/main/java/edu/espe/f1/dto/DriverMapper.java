@@ -31,12 +31,9 @@ public class DriverMapper {
                 driver.getChampionships(),
                 driver.getSeasonsData(),
                 teamDTO,
-                circuitsDTO
-        );
+                circuitsDTO);
     }
 
-    // Version "resumida", para usar dentro de CircuitResponseDTO o TeamResponseDTO
-    // (evita volver a anidar team/circuits completos)
     public static DriverSummaryDTO toSummaryDTO(Driver driver) {
         return new DriverSummaryDTO(
                 driver.getId(),
@@ -49,12 +46,12 @@ public class DriverMapper {
                 driver.getPodiums(),
                 driver.getPoles(),
                 driver.getPoints(),
-                driver.getChampionships()
-        );
+                driver.getChampionships());
     }
 
     private static TeamSummaryDTO mapTeamSummary(Team team) {
-        if (team == null) return null;
+        if (team == null)
+            return null;
         return new TeamSummaryDTO(
                 team.getId(),
                 team.getName(),
@@ -64,7 +61,25 @@ public class DriverMapper {
                 team.getFounded(),
                 team.getChampionships(),
                 team.getWins(),
-                team.getStatus().name()
-        );
+                team.getStatus().name());
+    }
+
+    public static Driver toEntity(DriverRequestDTO dto, Team currentTeam) {
+        Driver driver = new Driver();
+        driver.setId(dto.id());
+        driver.setName(dto.name());
+        driver.setSlug(dto.slug());
+        driver.setNationality(dto.nationality());
+        driver.setBorn(dto.born());
+        driver.setNumber(dto.number());
+        driver.setChampionships(dto.championships());
+        driver.setWins(dto.wins());
+        driver.setPodiums(dto.podiums());
+        driver.setPoles(dto.poles());
+        driver.setPoints(dto.points());
+        driver.setBio(dto.bio());
+        driver.setActive(true);
+        driver.setCurrentTeam(currentTeam);
+        return driver;
     }
 }

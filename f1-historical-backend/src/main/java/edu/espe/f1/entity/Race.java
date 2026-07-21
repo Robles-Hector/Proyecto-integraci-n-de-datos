@@ -39,4 +39,7 @@ public class Race {
 
     @Column(name = "created_at", updatable = false)
     private java.time.LocalDateTime createdAt = java.time.LocalDateTime.now();
+
+    @Column(nullable = false)
+    private boolean active = true;
 }

@@ -1,6 +1,7 @@
 package edu.espe.f1.controller;
 
 import edu.espe.f1.dto.TeamMapper;
+import edu.espe.f1.dto.TeamRequestDTO;
 import edu.espe.f1.dto.TeamResponseDTO;
 import edu.espe.f1.entity.Team;
 import edu.espe.f1.entity.User;
@@ -22,7 +23,7 @@ public class TeamController {
 
     @Autowired
     private TeamService teamService;
-    
+
     @Autowired
     private AuthService authService;
 
@@ -44,15 +45,15 @@ public class TeamController {
 
     // POST /api/teams — crear equipo aprobado (admin)
     @PostMapping
-    public ResponseEntity<TeamResponseDTO> createTeam(@Valid @RequestBody Team team) {
-        Team created = teamService.createTeam(team);
+    public ResponseEntity<TeamResponseDTO> createTeam(@Valid @RequestBody TeamRequestDTO dto) {
+        Team created = teamService.createTeam(dto);
         return new ResponseEntity<>(TeamMapper.toDTO(created), HttpStatus.CREATED);
     }
 
     // PUT /api/teams/{id}
     @PutMapping("/{id}")
-    public ResponseEntity<TeamResponseDTO> updateTeam(@PathVariable String id, @Valid @RequestBody Team teamDetails) {
-        Team updated = teamService.updateTeam(id, teamDetails);
+    public ResponseEntity<TeamResponseDTO> updateTeam(@PathVariable String id, @Valid @RequestBody TeamRequestDTO dto) {
+        Team updated = teamService.updateTeam(id, dto);
         return ResponseEntity.ok(TeamMapper.toDTO(updated));
     }
 

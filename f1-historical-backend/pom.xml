@@ -89,13 +89,6 @@
             <version>3.0.1</version>
         </dependency>
 
-        <!-- Soporte Nativo para archivos .env -->
-        <dependency>
-            <groupId>me.paulschwarz</groupId>
-            <artifactId>spring-dotenv</artifactId>
-            <version>4.0.0</version>
-        </dependency>
-
         <!-- Excluir Tomcat embebido en el empaquetado final (Requisito WAR) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

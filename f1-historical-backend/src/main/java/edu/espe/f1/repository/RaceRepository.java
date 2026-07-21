@@ -10,4 +10,6 @@ import java.util.List;
 public interface RaceRepository extends JpaRepository<Race, Long> {
     List<Race> findBySeasonOrderByRoundAsc(Integer season);
     List<Race> findByCircuitId(Long circuitId);
+    List<Race> findByActiveTrue();
+    List<Race> findBySeasonAndActiveTrueOrderByRoundAsc(Integer season);
 }

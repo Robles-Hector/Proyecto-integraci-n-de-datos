@@ -1,6 +1,7 @@
 package edu.espe.f1.controller;
 
 import edu.espe.f1.dto.DriverMapper;
+import edu.espe.f1.dto.DriverRequestDTO;
 import edu.espe.f1.dto.DriverResponseDTO;
 import edu.espe.f1.entity.Driver;
 import edu.espe.f1.entity.DriverTransfer;
@@ -23,7 +24,7 @@ public class DriverController {
 
     @Autowired
     private DriverService driverService;
-    
+
     @Autowired
     private AuthService authService;
 
@@ -54,8 +55,8 @@ public class DriverController {
 
     // POST /api/drivers
     @PostMapping
-    public ResponseEntity<DriverResponseDTO> createDriver(@Valid @RequestBody Driver driver) {
-        Driver created = driverService.createDriver(driver);
+    public ResponseEntity<DriverResponseDTO> createDriver(@Valid @RequestBody DriverRequestDTO dto) {
+        Driver created = driverService.createDriver(dto);
         return new ResponseEntity<>(DriverMapper.toDTO(created), HttpStatus.CREATED);
     }
 
@@ -63,8 +64,8 @@ public class DriverController {
     @PutMapping("/{id}")
     public ResponseEntity<DriverResponseDTO> updateDriver(
             @PathVariable String id,
-            @Valid @RequestBody Driver driverDetails) {
-        Driver updated = driverService.updateDriver(id, driverDetails);
+            @Valid @RequestBody DriverRequestDTO dto) {
+        Driver updated = driverService.updateDriver(id, dto);
         return ResponseEntity.ok(DriverMapper.toDTO(updated));
     }
 

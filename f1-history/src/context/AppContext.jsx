@@ -9,31 +9,35 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
 
-  // Al montar, verificar si hay token guardado
   useEffect(() => {
     const token    = localStorage.getItem('f1-token');
     const username = localStorage.getItem('f1-username');
-    const role     = localStorage.getItem('f1-role');
+    const rolesRaw = localStorage.getItem('f1-roles');
 
-    if (token && username && role) {
-      // Validar token con el backend
+    if (token && username && rolesRaw) {
       fetch(`${API}/auth/validate`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       })
         .then(r => r.ok ? r.json() : Promise.reject())
-        .then(() => setUser({ username, role, token }))
+        .then((data) => setUser({ username, roles: data.roles, token }))
         .catch(() => {
-          // Token expirado o inválido
           localStorage.removeItem('f1-token');
           localStorage.removeItem('f1-username');
-          localStorage.removeItem('f1-role');
+          localStorage.removeItem('f1-roles');
         })
         .finally(() => setAuthLoading(false));
     } else {
       setAuthLoading(false);
     }
   }, []);
+
+  const persistSession = (data) => {
+    localStorage.setItem('f1-token',    data.token);
+    localStorage.setItem('f1-username', data.username);
+    localStorage.setItem('f1-roles',    JSON.stringify(data.roles));
+    setUser({ username: data.username, roles: data.roles, token: data.token });
+  };
 
   const login = async (username, password) => {
     const res = await fetch(`${API}/auth/login`, {
@@ -48,10 +52,7 @@ export const AuthProvider = ({ children }) => {
     }
 
     const data = await res.json();
-    localStorage.setItem('f1-token',    data.token);
-    localStorage.setItem('f1-username', data.username);
-    localStorage.setItem('f1-role',     data.role);
-    setUser({ username: data.username, role: data.role, token: data.token });
+    persistSession(data);
     return data;
   };
 
@@ -68,21 +69,18 @@ export const AuthProvider = ({ children }) => {
     }
 
     const data = await res.json();
-    localStorage.setItem('f1-token',    data.token);
-    localStorage.setItem('f1-username', data.username);
-    localStorage.setItem('f1-role',     data.role);
-    setUser({ username: data.username, role: data.role, token: data.token });
+    persistSession(data);
     return data;
   };
 
   const logout = () => {
     localStorage.removeItem('f1-token');
     localStorage.removeItem('f1-username');
-    localStorage.removeItem('f1-role');
+    localStorage.removeItem('f1-roles');
     setUser(null);
   };
 
-  const isAdmin = user?.role === 'ROLE_ADMIN';
+  const isAdmin = !!user?.roles?.includes('ROLE_ADMIN');
   const isUser  = !!user;
 
   return (
@@ -130,7 +128,6 @@ export const ThemeProvider = ({ children }) => {
 export const useTheme = () => useContext(ThemeContext);
 
 // ── AdminData Context (eliminado — ahora es backend) ─────────────
-// Mantenemos el export para no romper imports existentes
 const AdminDataContext = createContext({ pendingTeams: [], addTeam: () => {} });
 export const AdminDataProvider = ({ children }) => (
   <AdminDataContext.Provider value={{ pendingTeams: [], addTeam: () => {} }}>

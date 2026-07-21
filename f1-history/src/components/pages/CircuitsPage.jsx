@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useF1Data, LoadingScreen, ErrorScreen } from '../../hooks/useF1Data';
+import CircuitsMap from './CircuitsMap';
 
 const COUNTRY_FLAGS = {
   'Mónaco':'🇲🇨','Reino Unido':'🇬🇧','Italia':'🇮🇹','Bélgica':'🇧🇪',
@@ -81,6 +82,8 @@ const CircuitsPage = () => {
             );
           })}
         </div>
+
+        <CircuitsMap circuits={filtered} onSelect={(id) => setSelected(id === selected ? null : id)} />
 
         <div style={{ display:'grid', gridTemplateColumns:selected?'1fr 1fr':'1fr', gap:'1.5rem' }}>
           <div className="circuits-grid" style={{ alignContent:'start' }}>

@@ -1,5 +1,6 @@
 package edu.espe.f1.service;
 
+import edu.espe.f1.dto.RaceRequestDTO;
 import edu.espe.f1.entity.Circuit;
 import edu.espe.f1.entity.Race;
 import edu.espe.f1.repository.CircuitRepository;
@@ -14,58 +15,85 @@ import java.util.List;
 @Service
 public class RaceService {
 
-    @Autowired private RaceRepository    raceRepository;
-    @Autowired private CircuitRepository circuitRepository;
+    @Autowired
+    private RaceRepository raceRepository;
+    @Autowired
+    private CircuitRepository circuitRepository;
+    @Autowired
+    private ChangeLogService changeLogService;
 
     public List<Race> getAllRaces() {
-        return raceRepository.findAll();
+        return raceRepository.findByActiveTrue();
     }
 
     public Race getRaceById(Long id) {
         return raceRepository.findById(id)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
-                "Carrera no encontrada con id: " + id));
+                .filter(Race::isActive)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "Carrera no encontrada con id: " + id));
     }
 
     public List<Race> getRacesBySeason(Integer season) {
-        return raceRepository.findBySeasonOrderByRoundAsc(season);
+        return raceRepository.findBySeasonAndActiveTrueOrderByRoundAsc(season);
     }
 
-    public Race createRace(Race race) {
-        Circuit circuit = circuitRepository.findById(race.getCircuit().getId())
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
-                "Circuito no encontrado con id: " + race.getCircuit().getId()));
-        race.setCircuit(circuit);
+    public Race createRace(RaceRequestDTO dto) {
+        Circuit circuit = circuitRepository.findById(dto.circuitId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "Circuito no encontrado con id: " + dto.circuitId()));
 
-        boolean roundExists = raceRepository.findBySeasonOrderByRoundAsc(race.getSeason()).stream()
-            .anyMatch(r -> r.getRound().equals(race.getRound()));
+        boolean roundExists = raceRepository.findBySeasonAndActiveTrueOrderByRoundAsc(dto.season()).stream()
+                .anyMatch(r -> r.getRound().equals(dto.round()));
         if (roundExists) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
-                "Ya existe una carrera en la temporada " + race.getSeason() + " con la ronda " + race.getRound());
+                    "Ya existe una carrera en la temporada " + dto.season() + " con la ronda " + dto.round());
         }
 
-        return raceRepository.save(race);
+        Race race = new Race();
+        race.setSeason(dto.season());
+        race.setRound(dto.round());
+        race.setCircuit(circuit);
+        race.setRaceDate(dto.raceDate());
+        race.setLapsTotal(dto.lapsTotal());
+        race.setActive(true);
+
+        Race saved = raceRepository.save(race);
+        changeLogService.log("CREATE", "Race", String.valueOf(saved.getId()), currentUsername(),
+                "Carrera creada: temporada " + saved.getSeason() + ", ronda " + saved.getRound() + " en "
+                        + circuit.getName());
+        return saved;
     }
 
-    public Race updateRace(Long id, Race details) {
+    public Race updateRace(Long id, RaceRequestDTO dto) {
         Race race = getRaceById(id);
 
-        if (details.getCircuit() != null && details.getCircuit().getId() != null) {
-            Circuit circuit = circuitRepository.findById(details.getCircuit().getId())
+        Circuit circuit = circuitRepository.findById(dto.circuitId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
-                    "Circuito no encontrado con id: " + details.getCircuit().getId()));
-            race.setCircuit(circuit);
-        }
+                        "Circuito no encontrado con id: " + dto.circuitId()));
+        race.setCircuit(circuit);
 
-        race.setSeason(details.getSeason());
-        race.setRound(details.getRound());
-        race.setRaceDate(details.getRaceDate());
-        race.setLapsTotal(details.getLapsTotal());
+        race.setSeason(dto.season());
+        race.setRound(dto.round());
+        race.setRaceDate(dto.raceDate());
+        race.setLapsTotal(dto.lapsTotal());
 
-        return raceRepository.save(race);
+        Race saved = raceRepository.save(race);
+        changeLogService.log("UPDATE", "Race", String.valueOf(saved.getId()), currentUsername(),
+                "Carrera actualizada: temporada " + saved.getSeason() + ", ronda " + saved.getRound());
+        return saved;
     }
 
     public void deleteRace(Long id) {
-        raceRepository.delete(getRaceById(id));
+        Race race = getRaceById(id);
+        race.setActive(false);
+        raceRepository.save(race);
+        changeLogService.log("DELETE", "Race", String.valueOf(race.getId()), currentUsername(),
+                "Carrera desactivada (eliminación lógica): temporada " + race.getSeason() + ", ronda "
+                        + race.getRound());
+    }
+
+    private String currentUsername() {
+        var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        return (auth != null && auth.isAuthenticated()) ? auth.getName() : "anónimo";
     }
 }

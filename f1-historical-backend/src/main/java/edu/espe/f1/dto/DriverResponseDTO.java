@@ -7,7 +7,7 @@ public record DriverResponseDTO(
         String name,
         String slug,
         String nationality,
-        String born, // String tal como está en la entidad, no LocalDate
+        String born,
         int number,
         boolean active,
         String bio,
@@ -17,6 +17,6 @@ public record DriverResponseDTO(
         double points,
         int championships,
         String seasonsData,
-        TeamSummaryDTO team, // desde driver.getCurrentTeam(), puede ser null
+        TeamSummaryDTO currentTeam, 
         List<CircuitSummaryDTO> circuits
 ) {}

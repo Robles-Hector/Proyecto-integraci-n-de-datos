@@ -6,20 +6,20 @@ import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import java.util.Date;
+import java.util.List;
 
 @Component
 public class JwtUtil {
 
-    // Clave secreta — en producción esto iría en application.properties
     private static final String SECRET = "f1HistoricalDbSecretKey2026XyZ!@#SuperSecure";
     private static final long   EXPIRATION_MS = 86_400_000L; // 24 horas
 
     private final SecretKey key = Keys.hmacShaKeyFor(SECRET.getBytes());
 
-    public String generateToken(String username, String role) {
+    public String generateToken(String username, List<String> roles) {
         return Jwts.builder()
             .subject(username)
-            .claim("role", role)
+            .claim("roles", roles)
             .issuedAt(new Date())
             .expiration(new Date(System.currentTimeMillis() + EXPIRATION_MS))
             .signWith(key, Jwts.SIG.HS256)
@@ -30,8 +30,9 @@ public class JwtUtil {
         return parseClaims(token).getSubject();
     }
 
-    public String extractRole(String token) {
-        return (String) parseClaims(token).get("role");
+    @SuppressWarnings("unchecked")
+    public List<String> extractRoles(String token) {
+        return parseClaims(token).get("roles", List.class);
     }
 
     public boolean validateToken(String token) {

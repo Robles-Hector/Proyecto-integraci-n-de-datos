@@ -2,30 +2,60 @@ import React, { useState } from 'react';
 import { useF1Data, LoadingScreen, ErrorScreen } from '../../hooks/useF1Data';
 
 const TEAM_COLORS = {
-  'Mercedes':'#00D2BE','Red Bull':'#3671C6','Ferrari':'#E8002D','McLaren':'#FF8000',
-  'Aston Martin':'#358C75','Alpine':'#0093CC','Williams':'#37BEDD','Renault':'#FFF500',
-  'AlphaTauri':'#4E7C9B','Alfa Romeo':'#B12335','Haas':'#B6BABD','Racing Point':'#F596C8',
-  'Kick Sauber':'#52E252','Visa Cash App RB':'#6692FF',
+  'Ferrari': '#E8002D', 'Mercedes': '#27F4D2', 'Red Bull': '#3671C6', 'McLaren': '#FF8000',
+  'Aston Martin': '#00665E', 'Alpine': '#00A1E8', 'Williams': '#64C4FF', 'RB': '#6C98FF',
+  'Sauber': '#000000', 'Haas': '#B6BABD', 'Cadillac': '#00594F',
+  // nombres históricos que puedan aparecer en resultados de temporadas anteriores
+  'Renault': '#FFF500', 'AlphaTauri': '#4E7C9B', 'Alfa Romeo': '#B12335',
+  'Racing Point': '#F596C8', 'Kick Sauber': '#52E252', 'Visa Cash App RB': '#6692FF',
 };
 
 const SeasonsPage = () => {
-  const { loading, error, seasons, drivers } = useF1Data();
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 10;
+
+  const { loading, error, seasons, races, raceResults, drivers } = useF1Data();
   const [tab, setTab] = useState('drivers');
 
   const years = Object.keys(seasons).map(Number).sort();
   const [selected, setSelected] = useState(null);
 
-  // Set default once data loads
   const currentYear = selected || (years.length ? years[years.length - 1] : null);
   const season = currentYear ? seasons[currentYear] : null;
 
   if (loading) return <div className="page"><LoadingScreen /></div>;
-  if (error)   return <div className="page"><ErrorScreen message={error} /></div>;
+  if (error) return <div className="page"><ErrorScreen message={error} /></div>;
 
-  const standings = drivers
-    .map(d => { const s = d.seasons?.find(x => x.year === currentYear); return s ? { ...d, ...s } : null; })
-    .filter(Boolean)
-    .sort((a, b) => b.points - a.points);
+  // Clasificación real, calculada desde race_results de la temporada seleccionada
+  const seasonRaceIds = races
+    .filter(r => r.season === currentYear)
+    .sort((a, b) => a.round - b.round)
+    .map(r => r.id);
+
+  const seasonResults = raceResults.filter(res => seasonRaceIds.includes(res.raceId));
+
+  const standingsMap = {};
+  seasonResults.forEach(res => {
+    if (!standingsMap[res.driverId]) {
+      const driverInfo = drivers.find(d => d.id === res.driverId);
+      standingsMap[res.driverId] = {
+        id: res.driverId,
+        name: res.driverName,
+        nationality: driverInfo?.nationality ?? '',
+        team: res.teamName,
+        points: 0,
+        wins: 0,
+      };
+    }
+    standingsMap[res.driverId].points += Number(res.points) || 0;
+    if (res.finalPosition === 1) standingsMap[res.driverId].wins += 1;
+    // último equipo con el que corrió en la temporada (por si hubo transferencia)
+    standingsMap[res.driverId].team = res.teamName;
+  });
+
+  const standings = Object.values(standingsMap).sort((a, b) => b.points - a.points);
+  const totalPages = Math.max(1, Math.ceil(standings.length / PAGE_SIZE));
+  const paginatedStandings = standings.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <div className="page">
@@ -38,10 +68,9 @@ const SeasonsPage = () => {
       </div>
 
       <div className="container" style={{ padding: '2rem' }}>
-        {/* Selector de año */}
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '2rem' }}>
           {years.map(y => (
-            <button key={y} onClick={() => setSelected(y)} style={{
+            <button key={y} onClick={() => { setSelected(y); setPage(1); }} style={{
               padding: '0.5rem 1.25rem', borderRadius: '4px', border: '1px solid',
               fontWeight: '700', fontFamily: "'Share Tech Mono', monospace", fontSize: '0.9rem',
               cursor: 'pointer', transition: 'all 0.2s',
@@ -54,7 +83,6 @@ const SeasonsPage = () => {
 
         {season && (
           <>
-            {/* Cabecera de temporada */}
             <div className="card" style={{ marginBottom: '1.5rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1.5rem' }}>
                 <div>
@@ -64,9 +92,9 @@ const SeasonsPage = () => {
                 </div>
                 <div style={{ display: 'flex', gap: '2rem', alignItems: 'center', flexWrap: 'wrap' }}>
                   {[
-                    { v: season.races, l: 'Carreras' },
+                    { v: seasonRaceIds.length, l: 'Carreras' },
                     { v: season.teams?.length, l: 'Equipos' },
-                    { v: season.champion || '—', l: 'Campeón Piloto' },
+                    { v: standings[0]?.name || '—', l: 'Campeón Piloto' },
                     { v: season.constructorChampion || '—', l: 'Campeón Constructor' },
                   ].map((s, i) => (
                     <div key={i} style={{ textAlign: 'center' }}>
@@ -78,10 +106,9 @@ const SeasonsPage = () => {
               </div>
             </div>
 
-            {/* Tabs */}
             <div className="page-tabs">
-              {[['drivers','🏎 Clasificación Pilotos'],['teams','🏁 Escuderías'],['info','ℹ️ Información']].map(([id, lbl]) => (
-                <button key={id} className={`page-tab ${tab === id ? 'active' : ''}`} onClick={() => setTab(id)}>{lbl}</button>
+              {[['drivers', '🏎 Clasificación Pilotos'], ['teams', '🏁 Escuderías'], ['info', 'ℹ️ Información']].map(([id, lbl]) => (
+                <button key={id} className={`page-tab ${tab === id ? 'active' : ''}`} onClick={() => { setTab(id); setPage(1); }}>{lbl}</button>
               ))}
             </div>
 
@@ -90,9 +117,18 @@ const SeasonsPage = () => {
                 <table>
                   <thead><tr><th>Pos</th><th>Piloto</th><th>Escudería</th><th>Victorias</th><th>Puntos</th></tr></thead>
                   <tbody>
-                    {standings.map((d, i) => (
+                    {paginatedStandings.map((d, i) => (
                       <tr key={d.id}>
-                        <td><span className={`pos-badge ${i===0?'pos-1':i===1?'pos-2':i===2?'pos-3':''}`}>{i+1}</span></td>
+                        <td>
+                          {(() => {
+                            const globalPos = (page - 1) * PAGE_SIZE + i + 1;
+                            return (
+                              <span className={`pos-badge ${globalPos === 1 ? 'pos-1' : globalPos === 2 ? 'pos-2' : globalPos === 3 ? 'pos-3' : ''}`}>
+                                {globalPos}
+                              </span>
+                            );
+                          })()}
+                        </td>
                         <td>
                           <div style={{ fontWeight: '700', color: 'var(--text-primary)' }}>{d.name}</div>
                           <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{d.nationality}</div>
@@ -109,6 +145,32 @@ const SeasonsPage = () => {
                     ))}
                   </tbody>
                 </table>
+
+                {standings.length > PAGE_SIZE && (
+                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginTop: '1.5rem' }}>
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      disabled={page === 1}
+                      onClick={() => setPage(p => Math.max(1, p - 1))}
+                      style={{ opacity: page === 1 ? 0.4 : 1, cursor: page === 1 ? 'not-allowed' : 'pointer' }}
+                    >
+                      ← Anterior
+                    </button>
+
+                    <span style={{ fontFamily: "'Share Tech Mono',monospace", color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                      Página {page} de {totalPages}
+                    </span>
+
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      disabled={page === totalPages}
+                      onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                      style={{ opacity: page === totalPages ? 0.4 : 1, cursor: page === totalPages ? 'not-allowed' : 'pointer' }}
+                    >
+                      Siguiente →
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -136,8 +198,8 @@ const SeasonsPage = () => {
                 <p style={{ color: 'var(--text-secondary)', lineHeight: 1.8 }}>{season.description}</p>
                 <div style={{ marginTop: '1.5rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem' }}>
                   {[
-                    { l: 'Carreras disputadas', v: season.races },
-                    { l: 'Campeón Piloto', v: season.champion || 'Por definir' },
+                    { l: 'Carreras disputadas', v: seasonRaceIds.length },
+                    { l: 'Campeón Piloto', v: standings[0]?.name || 'Por definir' },
                     { l: 'Campeón Constructor', v: season.constructorChampion || 'Por definir' },
                     { l: 'Equipos participantes', v: season.teams?.length },
                   ].map((x, i) => (

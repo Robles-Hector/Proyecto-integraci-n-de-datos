@@ -1,65 +1,74 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import localData from '../data/f1Data.json'; 
 
-// 1. HOOK CENTRAL: Une datos del Backend (Spring Boot) y Locales (JSON)
 export const useF1Data = () => {
   const [teams, setTeams] = useState([]);
   const [drivers, setDrivers] = useState([]);
+  const [races, setRaces] = useState([]);
+  const [raceResults, setRaceResults] = useState([]);
+  const [circuits, setCircuits] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Mantenemos estas secciones de tu JSON local para no saturar la BD
   const seasons = localData.seasons;
-  const circuits = localData.circuits;
   const recentRaces = localData.recentRaces;
 
-  useEffect(() => {
-    const API_BASE_URL = 'http://localhost:8082/api';
+  const API_BASE_URL = 'http://localhost:8082/api';
 
-    const fetchBackendData = async () => {
-      try {
-        setLoading(true);
+  const fetchBackendData = useCallback(async () => {
+    try {
+      setLoading(true);
 
-        // Consumo en paralelo desde tu Spring Boot en el puerto 8082
-        const [teamsResponse, driversResponse] = await Promise.all([
-          fetch(`${API_BASE_URL}/teams`),
-          fetch(`${API_BASE_URL}/drivers`)
-        ]);
+      const [teamsResponse, driversResponse, racesResponse, resultsResponse, circuitsResponse] = await Promise.all([
+        fetch(`${API_BASE_URL}/teams`),
+        fetch(`${API_BASE_URL}/drivers`),
+        fetch(`${API_BASE_URL}/races`),
+        fetch(`${API_BASE_URL}/race-results`),
+        fetch(`${API_BASE_URL}/circuits`)
+      ]);
 
-        if (!teamsResponse.ok || !driversResponse.ok) {
-          throw new Error('No se pudo conectar con la API de Spring Boot. ¡Asegúrate de que el backend esté corriendo!');
-        }
-
-        const teamsData = await teamsResponse.json();
-        const driversData = await driversResponse.json();
-
-        setTeams(teamsData);
-        setDrivers(driversData);
-        console.log('Driver sample:', driversData[0]);
-        setError(null);
-      } catch (err) {
-        console.error("Error de integración:", err);
-        setError(err.message);
-      } finally {
-        setLoading(false);
+      if (!teamsResponse.ok || !driversResponse.ok || !racesResponse.ok || !resultsResponse.ok || !circuitsResponse.ok) {
+        throw new Error('No se pudo conectar con la API de Spring Boot. ¡Asegúrate de que el backend esté corriendo!');
       }
-    };
 
-    fetchBackendData();
+      const teamsData    = await teamsResponse.json();
+      const driversData  = await driversResponse.json();
+      const racesData    = await racesResponse.json();
+      const resultsData  = await resultsResponse.json();
+      const circuitsData = await circuitsResponse.json();
+
+      setTeams(teamsData);
+      setDrivers(driversData);
+      setRaces(racesData);
+      setRaceResults(resultsData);
+      setCircuits(circuitsData);
+      setError(null);
+    } catch (err) {
+      console.error("Error de integración:", err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchBackendData();
+  }, [fetchBackendData]);
 
   return {
     loading,
     error,
     seasons,
-    circuits,
     recentRaces,
     teams,
-    drivers
+    drivers,
+    races,
+    raceResults,
+    circuits,
+    refetch: fetchBackendData
   };
 };
 
-// 2. COMPONENTE: Pantalla de carga reutilizable
 export const LoadingScreen = () => (
   <div style={{
     minHeight: '60vh', display: 'flex', flexDirection: 'column',
@@ -73,7 +82,6 @@ export const LoadingScreen = () => (
   </div>
 );
 
-// 3. COMPONENTE: Pantalla de error controlada
 export const ErrorScreen = ({ message }) => (
   <div style={{ minHeight: '60vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem' }}>
     <div style={{ fontSize: '3rem' }}>⚠️</div>

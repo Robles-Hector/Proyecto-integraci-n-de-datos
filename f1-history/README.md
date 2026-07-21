@@ -1,69 +1,23 @@
-# 🏎 F1 Historical Database — 2020–2026
+# F1 Historical DB
 
-Aplicación React SPA para explorar la historia de la Fórmula 1 desde 2020 hasta 2026.
+Aplicación web full-stack para consultar y administrar el historial de la Fórmula 1 (temporadas 2020-2026): pilotos, escuderías, circuitos, carreras y resultados. Proyecto desarrollado como trabajo integrador para la asignatura de Bases de Datos — Universidad de las Fuerzas Armadas ESPE, Sede Santo Domingo.
 
-## 🚀 Instalación y arranque
+## Evolución del proyecto
 
-```bash
-# 1. Instalar dependencias
-npm install
+En etapas anteriores del periodo académico, el frontend consumía la información desde un archivo `f1Data.json` local, simulando el comportamiento del sistema con datos estáticos. En esta etapa, ese consumo fue reemplazado por completo por peticiones HTTP hacia un backend real desarrollado en Spring Boot. Actualmente, todos los datos (pilotos, escuderías, circuitos, carreras y resultados) se consultan, registran, modifican y desactivan lógicamente desde una base de datos PostgreSQL, a través de servicios REST documentados con Swagger.
 
-# 2. Iniciar en desarrollo
-npm start
-```
+**Antes:** `Frontend → f1Data.json (datos simulados)`
+**Ahora:** `Frontend → API REST Spring Boot → PostgreSQL`
 
-La app se abrirá en `http://localhost:3000`
+## Stack tecnológico
 
-## 🔑 Credenciales de Administrador
+**Frontend:** React, React Router, Leaflet (mapa OpenStreetMap)
+**Backend:** Spring Boot, Spring Security, Spring Data JPA, JWT, BCrypt
+**Base de datos:** PostgreSQL
+**Documentación de API:** Swagger / OpenAPI
+**Otros:** HikariCP (pool de conexiones), Maven
 
-- **Usuario:** `admin`
-- **Contraseña:** `admin123`
-
-## 📋 Páginas y rutas
-
-| Ruta | Descripción |
-|------|-------------|
-| `/` | Inicio — Hero, búsqueda, campeón, timeline |
-| `/temporadas` | Clasificaciones por año (2020–2026) |
-| `/pilotos` | Lista de todos los pilotos |
-| `/piloto/:slug` | Página individual del piloto |
-| `/comparador` | Comparador cara a cara entre pilotos |
-| `/dashboard` | Panel con gráficos y estadísticas |
-| `/circuitos` | Mapa de circuitos del calendario |
-| `/admin` | Panel de administración *(solo admin)* |
-
-## 🎯 Funcionalidades
-
-### Invitado
-- Ver timeline interactiva (2020–2026)
-- Explorar pilotos, temporadas y circuitos
-- Comparar pilotos
-- Ver dashboard con gráficos
-- Búsqueda global con autocompletado
-
-### Administrador
-- Todo lo anterior +
-- Agregar nueva escudería con 2 pilotos (programada para 2027)
-- Editar datos de pilotos individuales
-- Ver escuderías pendientes de confirmación
-
-## 🛠 Stack tecnológico
-
-- **React 18** — Framework UI
-- **React Router v6** — Navegación SPA
-- **Recharts** — Gráficos y visualizaciones
-- **CSS Variables** — Sistema de temas (dark/light)
-- **Google Fonts** — Titillium Web, Share Tech Mono
-
-## 🎨 Diseño
-
-- Modo oscuro / claro con un clic
-- Paleta basada en rojo F1 (#E50914)
-- Tipografía: Titillium Web + Share Tech Mono
-- Totalmente responsive
-
-## 📁 Estructura del proyecto
-
+## Estructura del repositorio
 ```
 ├── 📁 .github
 │   └── 📁 modernize
@@ -102,10 +56,12 @@ La app se abrirá en `http://localhost:3000`
 │   │   │   │               │   └── ☕ SecurityConfig.java
 │   │   │   │               ├── 📁 controller
 │   │   │   │               │   ├── ☕ AuthController.java
+│   │   │   │               │   ├── ☕ ChangeLogController.java
 │   │   │   │               │   ├── ☕ CircuitController.java
 │   │   │   │               │   ├── ☕ DriverController.java
 │   │   │   │               │   ├── ☕ RaceController.java
 │   │   │   │               │   ├── ☕ RaceResultController.java
+│   │   │   │               │   ├── ☕ SearchController.java
 │   │   │   │               │   └── ☕ TeamController.java
 │   │   │   │               ├── 📁 dto
 │   │   │   │               │   ├── ☕ CircuitMapper.java
@@ -123,6 +79,7 @@ La app se abrirá en `http://localhost:3000`
 │   │   │   │               │   ├── ☕ TeamResponseDTO.java
 │   │   │   │               │   └── ☕ TeamSummaryDTO.java
 │   │   │   │               ├── 📁 entity
+│   │   │   │               │   ├── ☕ ChangeLog.java
 │   │   │   │               │   ├── ☕ Circuit.java
 │   │   │   │               │   ├── ☕ Driver.java
 │   │   │   │               │   ├── ☕ DriverTransfer.java
@@ -134,6 +91,7 @@ La app se abrirá en `http://localhost:3000`
 │   │   │   │               ├── 📁 exception
 │   │   │   │               │   └── ☕ GlobalExceptionHandler.java
 │   │   │   │               ├── 📁 repository
+│   │   │   │               │   ├── ☕ ChangeLogRepository.java
 │   │   │   │               │   ├── ☕ CircuitRepository.java
 │   │   │   │               │   ├── ☕ DriverRepository.java
 │   │   │   │               │   ├── ☕ DriverTransferRepository.java
@@ -144,10 +102,12 @@ La app se abrirá en `http://localhost:3000`
 │   │   │   │               │   └── ☕ UserRepository.java
 │   │   │   │               ├── 📁 service
 │   │   │   │               │   ├── ☕ AuthService.java
+│   │   │   │               │   ├── ☕ ChangeLogService.java
 │   │   │   │               │   ├── ☕ CircuitService.java
 │   │   │   │               │   ├── ☕ DriverService.java
 │   │   │   │               │   ├── ☕ RaceResultService.java
 │   │   │   │               │   ├── ☕ RaceService.java
+│   │   │   │               │   ├── ☕ SearchService.java
 │   │   │   │               │   └── ☕ TeamService.java
 │   │   │   │               └── ☕ F1HistoricalBackendApplication.java
 │   │   │   └── 📁 resources
@@ -175,6 +135,7 @@ La app se abrirá en `http://localhost:3000`
     │   │   │   └── 📄 Navbar.jsx
     │   │   └── 📁 pages
     │   │       ├── 📄 AdminPage.jsx
+    │   │       ├── 📄 CircuitsMap.jsx
     │   │       ├── 📄 CircuitsPage.jsx
     │   │       ├── 📄 ComparatorPage.jsx
     │   │       ├── 📄 DashboardPage.jsx
@@ -184,7 +145,10 @@ La app se abrirá en `http://localhost:3000`
     │   │       ├── 📄 MisPostulacionesPage.jsx
     │   │       ├── 📄 PilotPage.jsx
     │   │       ├── 📄 PostularEquipoPage.jsx
+    │   │       ├── 📄 RaceResultsPage.jsx
+    │   │       ├── 📄 RacesPage.jsx
     │   │       ├── 📄 RegisterPage.jsx
+    │   │       ├── 📄 SearchPage.jsx
     │   │       └── 📄 SeasonsPage.jsx
     │   ├── 📁 context
     │   │   └── 📄 AppContext.jsx
@@ -199,6 +163,68 @@ La app se abrirá en `http://localhost:3000`
     ├── ⚙️ package-lock.json
     └── ⚙️ package.json
 ```
+## Funcionalidades principales
 
----
-*Generated by FileTree Pro Extension*
+- Autenticación con JWT, roles múltiples por usuario (`ADMIN` / `USER`)
+- Rutas protegidas según rol, tanto en frontend como en backend
+- CRUD completo de pilotos, escuderías, carreras y resultados de carrera
+- Eliminación lógica en todas las entidades (campo `active`/`status`, según la tabla)
+- Paginación en Carreras, Temporadas e Historial de cambios
+- Búsqueda general con filtros por categoría (pilotos, escuderías, circuitos, carreras)
+- Historial de auditoría de cambios (creaciones, ediciones, eliminaciones y búsquedas), visible solo para administradores
+- Mapa interactivo de circuitos con OpenStreetMap
+- Proceso transaccional (`@Transactional`) al registrar resultados de carrera, actualizando estadísticas del piloto en la misma operación
+- Validaciones de negocio: colores de escudería únicos, números de piloto sin duplicar, número "1" reservado para el campeón vigente, edad mínima de 18 años
+- Manejo centralizado de errores con formato JSON uniforme (`GlobalExceptionHandler`), incluyendo validaciones de campos, conflictos de base de datos y errores 500 controlados
+- Documentación interactiva de la API vía Swagger/OpenAPI, con soporte de autenticación JWT integrado (botón "Authorize")
+
+## Requisitos previos
+
+- Java 21
+- Node.js y npm
+- PostgreSQL 14+
+- Maven (o usar el wrapper `./mvnw` incluido)
+
+## Configuración del backend
+
+1. Entra a la carpeta `f1-historical-backend/`.
+2. Crea la base de datos en PostgreSQL:
+```sql
+   CREATE DATABASE f1_historical_db;
+```
+3. Crea un archivo `.env` en la raíz de `f1-historical-backend/` (mismo nivel que `pom.xml`), usando `.env.example` como plantilla:
+
+DB_URL=jdbc:postgresql://localhost:5432/f1_historical_db
+DB_USERNAME=f1_app
+DB_PASSWORD=tu_contraseña
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=tu_contraseña_admin
+
+4. Ejecuta:
+```bash
+   ./mvnw spring-boot:run
+```
+5. El backend queda disponible en `http://localhost:8082`.
+6. Documentación de la API (Swagger): `http://localhost:8082/swagger-ui/index.html`
+
+## Configuración del frontend
+
+1. Entra a la carpeta `f1-history/`.
+2. Instala dependencias:
+```bash
+   npm install
+```
+3. Ejecuta:
+```bash
+   npm start
+```
+4. La app queda disponible en `http://localhost:3000`.
+
+## Roles del sistema
+
+- **USER:** puede consultar toda la información pública, postular una nueva escudería, y ver el estado de sus postulaciones.
+- **ADMIN:** además de lo anterior, puede aprobar/rechazar postulaciones, gestionar transferencias de pilotos, crear/editar carreras y resultados, y ver el historial de auditoría del sistema.
+
+## Autor
+
+Héctor — ESPE Sede Santo Domingo

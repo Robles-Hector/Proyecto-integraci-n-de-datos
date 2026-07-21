@@ -1,5 +1,7 @@
 package edu.espe.f1.service;
 
+import edu.espe.f1.dto.DriverMapper;
+import edu.espe.f1.dto.DriverRequestDTO;
 import edu.espe.f1.entity.Driver;
 import edu.espe.f1.entity.DriverTransfer;
 import edu.espe.f1.entity.Team;
@@ -26,6 +28,8 @@ public class DriverService {
     private DriverTransferRepository transferRepository;
     @Autowired
     private TeamRepository teamRepository;
+    @Autowired
+    private ChangeLogService changeLogService;
 
     // Solo activos
     public List<Driver> getAllDrivers() {
@@ -43,32 +47,44 @@ public class DriverService {
                         "Piloto no encontrado con id: " + id));
     }
 
-    public Driver createDriver(Driver driver) {
-        if (driverRepository.existsByNumberAndActiveTrue(driver.getNumber())) {
+    public Driver createDriver(DriverRequestDTO dto) {
+        if (driverRepository.existsByNumberAndActiveTrue(dto.number())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "Ya existe un piloto activo con el número " + driver.getNumber());
+                    "Ya existe un piloto activo con el número " + dto.number());
         }
-        return driverRepository.save(driver);
+        Team team = null;
+        if (dto.teamId() != null && !dto.teamId().isBlank()) {
+            team = teamRepository.findById(dto.teamId())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                            "Equipo no encontrado: " + dto.teamId()));
+        }
+        Driver saved = driverRepository.save(DriverMapper.toEntity(dto, team));
+        changeLogService.log("CREATE", "Driver", saved.getId(), currentUsername(),
+                "Piloto creado: " + saved.getName());
+        return saved;
+    }
+
+    public Driver updateDriver(String id, DriverRequestDTO dto) {
+        Driver driver = getDriverById(id);
+        driver.setName(dto.name());
+        driver.setSlug(dto.slug());
+        driver.setNationality(dto.nationality());
+        driver.setBorn(dto.born());
+        driver.setNumber(dto.number());
+        driver.setChampionships(dto.championships());
+        driver.setWins(dto.wins());
+        driver.setPodiums(dto.podiums());
+        driver.setPoles(dto.poles());
+        driver.setPoints(dto.points());
+        driver.setBio(dto.bio());
+        Driver saved = driverRepository.save(driver);
+        changeLogService.log("UPDATE", "Driver", saved.getId(), currentUsername(),
+                "Piloto actualizado: " + saved.getName());
+        return saved;
     }
 
     public List<Driver> searchDrivers(String name) {
         return driverRepository.findByNameContainingIgnoreCaseAndActiveTrue(name);
-    }
-
-    public Driver updateDriver(String id, Driver details) {
-        Driver driver = getDriverById(id);
-        driver.setName(details.getName());
-        driver.setSlug(details.getSlug());
-        driver.setNationality(details.getNationality());
-        driver.setBorn(details.getBorn());
-        driver.setNumber(details.getNumber());
-        driver.setChampionships(details.getChampionships());
-        driver.setWins(details.getWins());
-        driver.setPodiums(details.getPodiums());
-        driver.setPoles(details.getPoles());
-        driver.setPoints(details.getPoints());
-        driver.setBio(details.getBio());
-        return driverRepository.save(driver);
     }
 
     // Borrado LÓGICO — no elimina de la BD
@@ -76,6 +92,8 @@ public class DriverService {
         Driver driver = getDriverById(id);
         driver.setActive(false);
         driverRepository.save(driver);
+        changeLogService.log("DELETE", "Driver", driver.getId(), currentUsername(),
+                "Piloto desactivado: " + driver.getName());
     }
 
     // Restaurar piloto eliminado (admin)
@@ -84,7 +102,10 @@ public class DriverService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         "Piloto no encontrado con id: " + id));
         driver.setActive(true);
-        return driverRepository.save(driver);
+        Driver saved = driverRepository.save(driver);
+        changeLogService.log("UPDATE", "Driver", saved.getId(), currentUsername(),
+                "Piloto restaurado: " + saved.getName());
+        return saved;
     }
 
     // ── TRANSFERENCIAS ────────────────────────────────────────────
@@ -115,10 +136,19 @@ public class DriverService {
         driver.setCurrentTeam(toTeam);
         driverRepository.save(driver);
 
+        changeLogService.log("UPDATE", "Driver", driver.getId(), currentUsername(),
+                "Transferencia: " + driver.getName() + " → " + toTeam.getName() + " (temporada " + season + ")");
+
         return transfer;
     }
 
     public List<DriverTransfer> getTransferHistory(String driverId) {
         return transferRepository.findByDriverIdOrderByTransferDateDesc(driverId);
+    }
+
+    // ── HELPER ───────────────────────────────────────────────────
+    private String currentUsername() {
+        var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        return (auth != null && auth.isAuthenticated()) ? auth.getName() : "anónimo";
     }
 }

@@ -19,6 +19,7 @@ public class RaceResultService {
     @Autowired private RaceRepository       raceRepository;
     @Autowired private DriverRepository     driverRepository;
     @Autowired private TeamRepository       teamRepository;
+    @Autowired private ChangeLogService     changeLogService;
 
     public List<RaceResult> getAllResults() {
         return raceResultRepository.findByActiveTrue();
@@ -39,11 +40,6 @@ public class RaceResultService {
         return raceResultRepository.findByDriverIdAndActiveTrue(driverId);
     }
 
-    // ── PROCESO TRANSACCIONAL (Fase 3) ──────────────────────────────
-    // Registra el resultado de una carrera y actualiza las estadísticas
-    // acumuladas del piloto (puntos, victorias, podios, poles) como una
-    // sola unidad de trabajo. Si falla cualquier parte, no debe quedar
-    // ni el resultado ni la actualización del piloto a medias.
     @Transactional
     public RaceResult registerRaceResult(Map<String, Object> body) {
 
@@ -63,7 +59,6 @@ public class RaceResultService {
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                 "Equipo no encontrado con id: " + teamId));
 
-        // Regla de negocio: no se puede registrar dos veces al mismo piloto en la misma carrera
         if (raceResultRepository.existsByRaceIdAndDriverIdAndActiveTrue(raceId, driverId)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                 "Ya existe un resultado registrado para este piloto en esta carrera");
@@ -89,7 +84,6 @@ public class RaceResultService {
 
         raceResultRepository.save(result);
 
-        // Actualizar estadísticas acumuladas del piloto
         driver.setPoints(driver.getPoints() + points.doubleValue());
         if (finalPosition != null && finalPosition == 1) {
             driver.setWins(driver.getWins() + 1);
@@ -103,6 +97,10 @@ public class RaceResultService {
 
         driverRepository.save(driver);
 
+        changeLogService.log("CREATE", "RaceResult", String.valueOf(result.getId()), currentUsername(),
+            "Resultado registrado: " + driver.getName() + " — pos. " + (finalPosition != null ? finalPosition : "N/A") +
+            " en carrera #" + raceId + " (" + points + " pts)");
+
         return result;
     }
 
@@ -110,5 +108,12 @@ public class RaceResultService {
         RaceResult result = getResultById(id);
         result.setActive(false);
         raceResultRepository.save(result);
+        changeLogService.log("DELETE", "RaceResult", String.valueOf(result.getId()), currentUsername(),
+            "Resultado desactivado: " + result.getDriver().getName() + " en carrera #" + result.getRace().getId());
+    }
+
+    private String currentUsername() {
+        var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        return (auth != null && auth.isAuthenticated()) ? auth.getName() : "anónimo";
     }
 }

@@ -12,7 +12,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class AuthService {
@@ -20,8 +22,6 @@ public class AuthService {
     @Autowired private UserRepository userRepository;
     @Autowired private RoleRepository roleRepository;
     @Autowired private JwtUtil jwtUtil;
-    
-    // Inyección limpia del Bean global configurado en SecurityConfig
     @Autowired private PasswordEncoder passwordEncoder;
 
     // ── REGISTRO ─────────────────────────────────────────────────
@@ -41,11 +41,13 @@ public class AuthService {
         user.getRoles().add(userRole);
         userRepository.save(user);
 
-        String token = jwtUtil.generateToken(username, "ROLE_USER");
+        List<String> roles = List.of("ROLE_USER");
+        String token = jwtUtil.generateToken(username, roles);
+
         return Map.of(
             "token",    token,
             "username", username,
-            "role",     "ROLE_USER"
+            "roles",    roles
         );
     }
 
@@ -65,13 +67,16 @@ public class AuthService {
                 "Usuario o contraseña incorrectos");
         }
 
-        String role = user.hasRole(Role.RoleName.ROLE_ADMIN) ? "ROLE_ADMIN" : "ROLE_USER";
-        String token = jwtUtil.generateToken(username, role);
+        List<String> roles = user.getRoles().stream()
+            .map(r -> r.getName().name())
+            .collect(Collectors.toList());
+
+        String token = jwtUtil.generateToken(username, roles);
 
         return Map.of(
             "token",    token,
             "username", username,
-            "role",     role
+            "roles",    roles
         );
     }
 
@@ -81,15 +86,15 @@ public class AuthService {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Token inválido o expirado");
         }
         String username = jwtUtil.extractUsername(token);
-        String role     = jwtUtil.extractRole(token);
-        return Map.of("username", username, "role", role);
+        List<String> roles = jwtUtil.extractRoles(token);
+        return Map.of("username", username, "roles", roles);
     }
 
-    // ── OBTENER USUARIO ACTUAL (Alineado a Spring Security) ────────
+    // ── OBTENER USUARIO ACTUAL ──────────────────────────────────
     public User getCurrentUser() {
         Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         String username;
-        
+
         if (principal instanceof org.springframework.security.core.userdetails.UserDetails) {
             username = ((org.springframework.security.core.userdetails.UserDetails) principal).getUsername();
         } else {

@@ -4,10 +4,8 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
 import java.util.HashSet;
 import java.util.Set;
-
 import lombok.EqualsAndHashCode;
 
 @Entity

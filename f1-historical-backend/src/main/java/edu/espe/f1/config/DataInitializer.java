@@ -10,20 +10,28 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
-
+import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 @Component
 public class DataInitializer implements CommandLineRunner {
 
-    @Autowired private TeamRepository teamRepository;
-    @Autowired private DriverRepository driverRepository;
-    @Autowired private CircuitRepository circuitRepository;
-    @Autowired private UserRepository userRepository;
-    @Autowired private RoleRepository roleRepository;
-    
+    @Autowired
+    private org.springframework.transaction.PlatformTransactionManager transactionManager;
+    @Autowired
+    private TeamRepository teamRepository;
+    @Autowired
+    private DriverRepository driverRepository;
+    @Autowired
+    private CircuitRepository circuitRepository;
+    @Autowired
+    private UserRepository userRepository;
+    @Autowired
+    private RoleRepository roleRepository;
+
     // Inyección administrada por el contenedor de Spring Security
-    @Autowired private PasswordEncoder passwordEncoder;
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
     // Lectura parametrizada desde properties / variables de entorno futuras
     @Value("${app.admin.username:admin}")
@@ -33,15 +41,22 @@ public class DataInitializer implements CommandLineRunner {
     private String adminPassword;
 
     @Override
+    @Transactional
     public void run(String... args) throws Exception {
 
         // ── 0. ROLES Y USUARIO ADMIN ─────────────────────────────
         if (roleRepository.count() == 0) {
-            Role userRole  = roleRepository.save(new Role(Role.RoleName.ROLE_USER));
-            Role adminRole = roleRepository.save(new Role(Role.RoleName.ROLE_ADMIN));
+            roleRepository.save(new Role(Role.RoleName.ROLE_USER));
+            roleRepository.save(new Role(Role.RoleName.ROLE_ADMIN));
             System.out.println("✅ Roles insertados de manera limpia: ROLE_USER, ROLE_ADMIN");
+        }
 
-            // Configuración del administrador sin datos rígidos (hardcoded)
+        if (!userRepository.existsByUsername(adminUsername)) {
+            Role userRole = roleRepository.findByName(Role.RoleName.ROLE_USER)
+                    .orElseThrow(() -> new IllegalStateException("ROLE_USER no encontrado"));
+            Role adminRole = roleRepository.findByName(Role.RoleName.ROLE_ADMIN)
+                    .orElseThrow(() -> new IllegalStateException("ROLE_ADMIN no encontrado"));
+
             User admin = new User();
             admin.setUsername(adminUsername);
             admin.setPassword(passwordEncoder.encode(adminPassword));
@@ -62,8 +77,7 @@ public class DataInitializer implements CommandLineRunner {
 
         ObjectMapper mapper = new ObjectMapper();
         JsonNode root = mapper.readTree(
-            new ClassPathResource("f1Data.json").getInputStream()
-        );
+                new ClassPathResource("f1Data.json").getInputStream());
 
         // ── 1. EQUIPOS ───────────────────────────────────────────
         if (teamRepository.count() == 0) {
@@ -109,9 +123,8 @@ public class DataInitializer implements CommandLineRunner {
 
                 String teamId = d.get("teamId").asText();
                 teamRepository.findById(teamId).ifPresentOrElse(
-                    driver::setCurrentTeam,
-                    () -> System.out.println("⚠️ Equipo no encontrado: " + teamId)
-                );
+                        driver::setCurrentTeam,
+                        () -> System.out.println("⚠️ Equipo no encontrado: " + teamId));
 
                 driverRepository.save(driver);
                 count++;
@@ -138,18 +151,21 @@ public class DataInitializer implements CommandLineRunner {
         }
 
         // ── 4. RELACIONES driver_circuits ────────────────────────
-        List<Driver> allDrivers  = driverRepository.findAll();
+        List<Driver> allDrivers = driverRepository.findAll();
         List<Circuit> allCircuits = circuitRepository.findAll();
 
         for (Driver driver : allDrivers) {
             JsonNode driverNode = findDriverNode(root, driver.getId());
-            if (driverNode == null) continue;
+            if (driverNode == null)
+                continue;
 
             JsonNode seasons = driverNode.get("seasons");
-            if (seasons == null) continue;
+            if (seasons == null)
+                continue;
 
             java.util.Set<Integer> activeYears = new java.util.HashSet<>();
-            for (JsonNode s : seasons) activeYears.add(s.get("year").asInt());
+            for (JsonNode s : seasons)
+                activeYears.add(s.get("year").asInt());
 
             boolean active2020_2026 = activeYears.stream().anyMatch(y -> y >= 2020 && y <= 2026);
             if (active2020_2026) {
@@ -164,19 +180,20 @@ public class DataInitializer implements CommandLineRunner {
         }
 
         long total = driverRepository.findAll().stream()
-            .mapToLong(d -> d.getCircuits().size()).sum();
+                .mapToLong(d -> d.getCircuits().size()).sum();
         System.out.println("✅ " + total + " relaciones driver_circuits creadas.");
 
-        long activeCount   = driverRepository.findAll().stream().filter(Driver::isActive).count();
+        long activeCount = driverRepository.findAll().stream().filter(Driver::isActive).count();
         long inactiveCount = driverRepository.count() - activeCount;
         System.out.println("🔍 Verificación: " + activeCount + " pilotos activos, " + inactiveCount + " inactivos.");
-        
+
         System.out.println("🏁 Inicialización completada.");
     }
 
     private JsonNode findDriverNode(JsonNode root, String driverId) {
         for (JsonNode d : root.get("drivers")) {
-            if (driverId.equals(d.get("id").asText())) return d;
+            if (driverId.equals(d.get("id").asText()))
+                return d;
         }
         return null;
     }
